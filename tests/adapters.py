@@ -677,34 +677,36 @@ def run_train_bpe(
         for counter in results:
             pretoken_dict.update(counter)
     
-    paired_dict = collections.Counter()
-    for k, v in pretoken_dict.items():
-        for i in range(len(k)-1):
-            pair = k[i], k[i+1]
-            paired_dict.update({pair: v})
+    paired_token_dict = collections.Counter()
+    pair_word_dict = collections.defaultdict()
+    for word, freq in pretoken_dict.items():
+        for t1, t2 in zip(word, word[1:]):
+            paired_token_dict[(t1,t2)] += freq
+            pair_word_dict[(t1,t2)].add(word)
 
     merges: list[tuple[bytes, bytes]] = []
     for new_word_i in range(vocab_size - current_vocab_size):
-        max_value = max(paired_dict.values())
-        paired_bytes = max([k for k, v in paired_dict.items() if v == max_value])
+        max_value = max(paired_token_dict.values())
+        paired_bytes = max([k for k, v in paired_token_dict.items() if v == max_value])
         merges.append(paired_bytes)
 
         new_vocab = b"".join(paired_bytes)
         vocab[current_vocab_size] = new_vocab
         current_vocab_size += 1
 
-        for k in list(pretoken_dict.keys()):
-            if paired_bytes in zip(k, k[1:]):
-                v = pretoken_dict.pop(k)
-                new_k = []
-                i = 0
-                while i < len(k):
-                    if i < len(k) - 1 and (k[i], k[i + 1]) == paired_bytes:
-                        new_k.append(new_vocab)
-                        i += 2
-                    else:
-                        new_k.append(k[i])
-                        i += 1
-                pretoken_dict[tuple(new_k)] = v
+        ref_words = pair_word_dict.pop(paired_bytes)
+        
+        for word in ref_words:
+            # Delete counts for old pairs
+            for t1, t2 in zip(word, word[1:]):
+                paired_token_dict[(t1,t2)] -= 1
+                if paired_token_dict[(t1,t2)] <= 0:
+                    del paired_token_dict[(t1,t2)]
+            
+            # Build words with new pair added in
+            
+
+            # Recount with new pairs - for each recount - make sure new word is correct
+            
     
     return vocab, merges
