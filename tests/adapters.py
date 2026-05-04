@@ -678,7 +678,7 @@ def run_train_bpe(
             pretoken_dict.update(counter)
     
     paired_token_dict = collections.Counter()
-    pair_word_dict = collections.defaultdict()
+    pair_word_dict = collections.defaultdict(set)
     for word, freq in pretoken_dict.items():
         for t1, t2 in zip(word, word[1:]):
             paired_token_dict[(t1,t2)] += freq
@@ -702,11 +702,27 @@ def run_train_bpe(
                 paired_token_dict[(t1,t2)] -= 1
                 if paired_token_dict[(t1,t2)] <= 0:
                     del paired_token_dict[(t1,t2)]
+                pair_word_dict[(t1,t2)].discard(word)
             
             # Build words with new pair added in
+            token_i = 0
+            new_word = []
+            while token_i < len(word)-1:
+                eval_pair = word[token_i], word[token_i+1]
+                if eval_pair == paired_bytes:
+                    new_word.append(new_vocab)
+                    token_i += 2
+                else:
+                    new_word.append(word[token_i])
+                    token_i +=1 
+            new_word = tuple(new_word)
             
+            word_count = pretoken_dict.pop(word)
+            pretoken_dict[new_word] = word_count
 
             # Recount with new pairs - for each recount - make sure new word is correct
-            
+            for t1, t2 in zip(new_word, new_word[1:]):
+                paired_token_dict[(t1,t2)] += pretoken_dict[new_word]
+                pair_word_dict[(t1,t2)].add(word)
     
     return vocab, merges
